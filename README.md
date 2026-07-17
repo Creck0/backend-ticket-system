@@ -1,78 +1,46 @@
-# Jelajah Nusa — Sistem Ticketing Wisata
+# Jelajah Nusa — Tourism Ticketing System
 
-Full-stack scaffold: **React + Tailwind** (frontend) dan **Laravel API** (backend),
-dirancang mengikuti mitigasi **OWASP Top 10 (2021)**.
+A full-stack tourism ticket booking platform built with **React + Tailwind CSS** (frontend) and **Laravel API** (backend), designed from the ground up with **OWASP Top 10 (2021)** mitigations baked into the code.
 
-## Struktur folder
+---
 
-```
-tourism-ticketing/
-├── backend/     # Laravel 11 API
-└── frontend/    # React + Vite + Tailwind SPA
-```
+## 📋 Description
 
-## Menjalankan Backend (Laravel)
+Jelajah Nusa lets visitors browse tourist destinations, book entry tickets by date and ticket type, and manage their bookings — while admins can add and manage destinations. It's built as a decoupled SPA (React) talking to a stateless-feeling but session-authenticated Laravel API (via Sanctum SPA auth), so the architecture mirrors what you'd use in a real production tourism booking product.
 
-Folder `backend/` berisi file inti (models, controllers, migrations, routes, config,
-middleware) yang perlu ditempel ke project Laravel baru, karena installer Laravel
-sendiri butuh dijalankan via Composer (butuh koneksi packagist yang tidak tersedia
-di lingkungan pembuatan file ini).
+## ✨ Features
 
-```bash
-composer create-project laravel/laravel backend-app
-cd backend-app
-composer require laravel/sanctum spatie/laravel-permission
+**Visitor / Customer**
+- Browse active destinations with pagination
+- View destination detail with available ticket types & prices
+- Register / login (cookie-based session auth, not localStorage tokens)
+- Book tickets for a chosen visit date and quantity per ticket type
+- View personal booking history with status (pending, paid, cancelled, used, expired)
 
-# salin isi folder backend/ (app, database, routes, config, bootstrap) ke sini, timpa file yang sama
-cp -r ../backend/app/* app/
-cp -r ../backend/database/migrations/* database/migrations/
-cp ../backend/routes/api.php routes/api.php
-cp ../backend/config/cors.php config/cors.php
-cp ../backend/bootstrap/app.php bootstrap/app.php
-cp ../backend/.env.example .env
+**Admin**
+- Add new destinations with image upload
+- Define multiple ticket types (name, price, stock) per destination
+- Role-based access enforced server-side (not just hidden in the UI)
 
-php artisan key:generate
-php artisan migrate
-php artisan storage:link
-php artisan serve
-```
+**Security (mapped to OWASP Top 10)**
+- Server-side price & total recalculation on every booking (client never sends trusted price data)
+- Row-level locking (`lockForUpdate`) to prevent stock overselling under concurrent bookings
+- Brute-force login protection with rate limiting + generic error messages (anti user-enumeration)
+- Mass-assignment protection via explicit `$fillable` on every model
+- Security headers middleware (CSP, X-Frame-Options, HSTS, etc.)
+- CORS locked to a single allowed frontend origin (never `*`)
+- Audit log table for authentication and sensitive actions
+- Strict Form Request validation on every endpoint (no raw/unvalidated input touches the DB)
 
-Tambahkan role admin manual pertama kali lewat tinker:
-```bash
-php artisan tinker
->>> $u = App\Models\User::find(1);
->>> $u->role = 'admin';
->>> $u->save();
-```
+See the [full OWASP Top 10 mapping table](#-owasp-top-10-mitigation-map) below.
 
-## Menjalankan Frontend (React)
+## 🛠 Tech Stack
 
-```bash
-cd frontend
-npm install
-cp .env.example .env   # isi VITE_API_URL=http://localhost:8000
-npm run dev
-```
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, React Router, Tailwind CSS, Vite, Axios |
+| Backend | Laravel 11, Laravel Sanctum (SPA cookie auth), Eloquent ORM |
+| Database | SQLite (dev default) or MySQL |
+| Auth | Session + HttpOnly cookies via Sanctum (no JWT/localStorage tokens) |
 
-## Peta Mitigasi OWASP Top 10 (2021)
-
-| # | Risiko | Mitigasi di project ini |
-|---|--------|--------------------------|
-| A01 | Broken Access Control | Route model binding via slug/booking_code (bukan ID berurutan); pengecekan `user_id` eksplisit di `BookingController@show`; middleware `admin` untuk endpoint admin; frontend `ProtectedRoute` hanya untuk UX, otorisasi asli tetap di server |
-| A02 | Cryptographic Failures | Password di-hash bcrypt (`'password' => 'hashed'`), `$hidden` di model User, cookie session `httpOnly` + `Secure` + `SameSite`, HSTS header |
-| A03 | Injection | Semua query lewat Eloquent/Query Builder (parameterized), Form Request validation ketat di setiap endpoint, `strip_tags()` untuk input teks bebas, upload file divalidasi MIME asli bukan ekstensi |
-| A04 | Insecure Design | Rate limiting berlapis (login 6x/menit, API umum 60x/menit), transaksi DB dengan `lockForUpdate()` untuk cegah race condition overselling tiket, harga & total selalu dihitung ulang di server |
-| A05 | Security Misconfiguration | `APP_DEBUG=false` di production, custom exception handler yang tidak membocorkan stack trace, `SecurityHeaders` middleware (CSP, X-Frame-Options, X-Content-Type-Options), CORS whitelist origin (tidak pernah `*`) |
-| A06 | Vulnerable & Outdated Components | Gunakan versi Laravel 11 / React 18 / Sanctum terbaru; jalankan `composer audit` & `npm audit` secara rutin |
-| A07 | Identification & Auth Failures | Rate limit + lockout brute force login, pesan error generik (anti user-enumeration), `Password::uncompromised()` cek password bocor, session regenerate saat login/logout |
-| A08 | Software & Data Integrity Failures | `$fillable` eksplisit di semua model (anti mass-assignment), field `role` sengaja tidak bisa diisi lewat request publik |
-| A09 | Security Logging & Monitoring Failures | Tabel `audit_logs` mencatat login sukses/gagal, registrasi, dan bisa diperluas ke aksi booking/admin |
-| A10 | Server-Side Request Forgery (SSRF) | Tidak ada fitur fetch URL dari input user; jika ditambahkan integrasi payment gateway via webhook, validasi origin & signature webhook sebelum diproses |
-
-## Catatan penting sebelum production
-
-1. Ganti `APP_KEY` dan semua kredensial `.env` — jangan pernah commit file `.env` asli.
-2. Pasang HTTPS wajib (HSTS sudah disiapkan di middleware).
-3. Tambahkan integrasi payment gateway (Midtrans/Xendit) dengan verifikasi signature webhook.
-4. Aktifkan `php artisan queue:work` untuk job pembatalan booking otomatis saat `expires_at` lewat.
-5. Lakukan `composer audit`, `npm audit`, dan idealnya scan otomatis (misalnya OWASP ZAP / Dependabot) sebelum rilis.
+## 📁 Project Structure
