@@ -72,7 +72,7 @@ php artisan route:list --path=api
 php artisan migrate:status
 ```
 
-### 5. Start the backend
+### Start the backend
 
 ```bash
 php artisan serve
@@ -80,7 +80,7 @@ php artisan serve
 
 Keep this terminal open — closing it stops the server.
 
-### 6. Start the frontend
+### Start the frontend
 
 In a **separate terminal**:
 
@@ -93,15 +93,6 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-### 7. Create your first admin user
-
-Register a normal account through the UI, then promote it via Tinker:
-```bash
-php artisan tinker
->>> $u = App\Models\User::first();
->>> $u->role = 'admin';
->>> $u->save();
-```
 
 ## ⚠️ Before going to production
 
